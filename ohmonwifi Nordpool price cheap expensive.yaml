@@ -1,0 +1,27 @@
+alias: ohmonwifi Nordpool price cheap expensive
+description: ""
+use_blueprint:
+  path: anhelgesen/Nordpool_price.yaml
+  input:
+    grid_area: sensor.nordpool_kwh_se3_sek_3_10_025
+    expensive_hours: 6
+    cheap:
+      - service: automation.turn_on
+        data: {}
+        target:
+          entity_id: automation.ohmonhass
+      - service: number.set_value
+        entity_id: number.ohmonwifihass_temperature
+        data_template:
+          value: "{{ states('sensor.gw2000a_outdoor_temperature') | float }}"
+    expensive:
+      - device_id: 9bfa8d157eea050e50a7da0aa8ad6fa1
+        domain: number
+        entity_id: 828e5035a0ad33bcf30c29023d332faa
+        type: set_value
+        value: 20
+      - service: automation.turn_off
+        data:
+          stop_actions: true
+        target:
+          entity_id: automation.ohmonhass
