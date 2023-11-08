@@ -2,7 +2,7 @@ alias: Ohmonhass Nordpool
 description: ""
 trigger:
   - platform: time_pattern
-    minutes: /4
+    minutes: /5
     id: Billigare
 condition: []
 action:
@@ -11,3 +11,5 @@ action:
     data_template:
       value: "{{ states('sensor.gw2000a_outdoor_temperature') | float }}"
 mode: single
+
+#This is my original automation that i use with blueprint
