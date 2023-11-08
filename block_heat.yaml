@@ -1,8 +1,11 @@
 blueprint:
   name: Block heat
-  description: This blueprints uses the nordpool integration and lets you choose howe
-    many hours you wil define as expesive, and make omhass block temperature based on that information.
+  description:
+    This blueprints uses the nordpool integration and lets you choose howe
+    many hours you will define as expesive, and make a sensor block temperature based on that information.
   domain: automation
+
+# Inputs
   input:
     grid_area:
       name: Grid area sensor
@@ -10,13 +13,13 @@ blueprint:
       selector:
         entity:
           domain:
-          - sensor
+            - sensor
           integration: nordpool
           multiple: false
     expensive_hours:
       name: Expensive hours
       description: numbers of Expensive hours to block
-      default: 12
+      default: 4
       selector:
         number:
           min: 0.0
@@ -24,53 +27,168 @@ blueprint:
           mode: slider
           step: 1.0
     temperature_sensor:
-      name: Temp sensor
-      description: here you select your outside temperature sensor
+      name: Temperature sensor
+      description: here you select your real outside temperature sensor
       selector:
         entity:
-          domain: 
-          - sensor
+          domain:
+            - sensor
           device_class:
-          - temperature
+            - temperature
           multiple: false
-    Ohmonhass_sensor:
-      name: ohmonhass
-      description: your ohmonhass
+    controll_sensor:
+      name: Controllable sensor
+      description: your controllable sensor
       selector:
         entity:
-          domain: 
-          - number
+          domain:
+            - number
           integration: mqtt
           multiple: false
+    virtual_temperature:
+      name: Virtual block temp
+      description: your selected virtual temperature to block your heater
+      default: 18
+      selector:
+        number:
+          min: 0.0
+          max: 30
+          mode: slider
+          step: 1.0
+          unit_of_measurement: °C
+    cheap_hours:
+      name: Cheap hours boost
+      description: future implementation not introduced yet # numbers of cheap hours to boost
+      default: 1
+      selector:
+        number:
+          min: 0.0
+          max: 10
+          mode: slider
+          step: 1.0
+    cheap_hours_temp:
+      name: Cheap hours boost temerature
+      description: future implementation not introduced yet # temperature boost
+      default: 1
+      selector:
+        number:
+          min: 0.0
+          max: 5
+          mode: slider
+          step: 1.0
+          unit_of_measurement: °C
+    trigger_bypass:
+      name: Trigger Sensor By-pass
+      description: Select a switch that will By-pass the trigger sensor and make your heater function as normal.
+      default: []
+      selector:
+        entity:
+          domain:
+            - binary_sensor
     expensive:
       name: Expensive
-      description: Action to run on expensive
+      description: Action to run on expensive more than default
       default: []
       selector:
         action: {}
     cheap:
       name: Cheap
-      description: Action to run on cheap
+      description: Action to run on cheap more than default
       default: []
       selector:
         action: {}
-  source_url: https://github.com/anhelgesen/Blueprints/blob/main/Nordpool_price.yaml
+
+# Variables
 variables:
-  grid_area_var: !input grid_area
-  expensive_hours_var: !input expensive_hours
+  grid_area: !input grid_area
+  expensive_hours: !input expensive_hours
+  temperature_sensor: !input temperature_sensor
+  controll_sensor: !input controll_sensor
+  virtual_temperature: !input virtual_temperature
+  cheap_hours: !input cheap_hours
+  cheap_hours_temp: !input cheap_hours_temp
+  trigger_bypass: !input trigger_bypass
+
+# Triggers
 trigger:
-- platform: state
-  entity_id: !input grid_area
+  - platform: state
+    entity_id: !input grid_area
+  - platform: state
+    id: "bypasson"
+    entity_id: !input trigger_bypass
+    from: "off"
+    to: "on"
+  - platform: state
+    id: "bypassoff"
+    entity_id: !input trigger_bypass
+    from: "on"
+    to: "off"
+  - platform: homeassistant
+    id: "hastart"
+    event: start
+  - platform: time_pattern
+    minutes: /5
+
+
+# All Conditions
+condition:
+  #Trigger conditions
+  - condition: or
+    conditions:
+      - condition: and # trigger by by-pass turning on
+        conditions:
+          - condition: trigger
+            id: "bypasson"
+          - "{{ (include_bypass == 'bypass_enabled_turn_on') or (include_bypass == 'bypass_enabled') or (include_bypass == 'bypass_enabled_stop') }}"
+      - condition: and # trigger by by-pass turning off
+        conditions:
+          - condition: trigger
+            id: "bypassoff"
+          - "{{ (include_bypass == 'bypass_enabled') or (include_bypass == 'bypass_enabled_stop') or (include_bypass == 'bypass_enabled_turn_on') }}"
+      - condition: and # trigger by HA Restart & check if any fans are on or if the by-pass auto off is enabled
+        conditions:
+          - "{{ (expand(entity_turn_on.entity_id) | selectattr('state', '==', 'on') | list | count > 0) or ((include_bypass_auto_off == 'bypass_auto_off_enabled') and (states[trigger_bypass].state == 'on')) }}"
+          - condition: trigger
+            id: "t5"
+    #   - condition: and # trigger by HA Restart
+    #     conditions:
+    #       - condition: numeric_state
+    #         entity_id: !input trigger_sensor
+    #         below: !input falling_value
+    #       - condition: trigger
+    #         id: 'hastart'
+
 action:
-- choose:
-  - conditions:
-    - condition: template
-      value_template: '{{ (state_attr(grid_area_var,''today'')|sort)[24 - expensive_hours_var
-        |int] > states(grid_area_var)|float }}'
-    sequence: !input cheap
-  - conditions:
-    - condition: template
-      value_template: '{{ (state_attr(grid_area_var,''today'')|sort)[24 - expensive_hours_var
-        |int] < states(grid_area_var)|float }}'
-    sequence: !input expensive
-  default: []
+  - choose:
+      - conditions:
+          - condition: template
+            value_template:
+              "{{ (state_attr(grid_area,'today')|sort)[24 - expensive_hours
+              |int] > states(grid_area)|float }}"
+        sequence: !input cheap
+      - conditions:
+          - condition: template
+            value_template:
+              "{{ (state_attr(grid_area,'today')|sort)[24 - expensive_hours
+              |int] < states(grid_area)|float }}"
+        sequence: !input expensive
+      - conditions:
+          - condition: time_pattern
+            minutes: /5
+            service: number.set_value
+            entity_id: !input controll_sensor
+            data template:
+            value: "{{ states('!input temperature_sensor') | float }}"
+            mode: single
+        sequence: !input cheap
+      - conditions:
+          - condition: template
+            device_id: !input controll_sensor
+            domain: number
+            entity_id: !input controll_sensor
+            type: set_value
+            value: !input virtual_temperature
+            mode: single
+        sequence: !input expensive
+            
+    default: []
