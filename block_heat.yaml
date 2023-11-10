@@ -77,14 +77,6 @@ blueprint:
           mode: slider
           step: 1.0
           unit_of_measurement: °C
-    trigger_bypass:
-      name: Trigger Sensor By-pass
-      description: Select a switch that will By-pass the trigger sensor and make your heater function as normal.
-      default: []
-      selector:
-        entity:
-          domain:
-            - binary_sensor
     expensive:
       name: Expensive
       description: Action to run on expensive more than default
@@ -113,50 +105,12 @@ variables:
 trigger:
   - platform: state
     entity_id: !input grid_area
-  - platform: state
-    id: "bypasson"
-    entity_id: !input trigger_bypass
-    from: "off"
-    to: "on"
-  - platform: state
-    id: "bypassoff"
-    entity_id: !input trigger_bypass
-    from: "on"
-    to: "off"
-  - platform: homeassistant
-    id: "hastart"
     event: start
   - platform: time_pattern
     minutes: /5
 
 
-# All Conditions
-condition:
-  #Trigger conditions
-  - condition: or
-    conditions:
-      - condition: and # trigger by by-pass turning on
-        conditions:
-          - condition: trigger
-            id: "bypasson"
-          - "{{ (include_bypass == 'bypass_enabled_turn_on') or (include_bypass == 'bypass_enabled') or (include_bypass == 'bypass_enabled_stop') }}"
-      - condition: and # trigger by by-pass turning off
-        conditions:
-          - condition: trigger
-            id: "bypassoff"
-          - "{{ (include_bypass == 'bypass_enabled') or (include_bypass == 'bypass_enabled_stop') or (include_bypass == 'bypass_enabled_turn_on') }}"
-      - condition: and # trigger by HA Restart & check if any fans are on or if the by-pass auto off is enabled
-        conditions:
-          - "{{ (expand(entity_turn_on.entity_id) | selectattr('state', '==', 'on') | list | count > 0) or ((include_bypass_auto_off == 'bypass_auto_off_enabled') and (states[trigger_bypass].state == 'on')) }}"
-          - condition: trigger
-            id: "t5"
-    #   - condition: and # trigger by HA Restart
-    #     conditions:
-    #       - condition: numeric_state
-    #         entity_id: !input trigger_sensor
-    #         below: !input falling_value
-    #       - condition: trigger
-    #         id: 'hastart'
+# Conditions
 
 action:
   - choose:
