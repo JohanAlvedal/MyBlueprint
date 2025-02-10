@@ -19,3 +19,35 @@ blueprint:
           max: 48
           step: 24
           mode: box
+
+trigger:
+  - platform: time_pattern
+    minutes: "/5"
+  - platform: homeassistant
+    event: start
+
+variables:
+  nordpool_sensor: !input nordpool_sensor
+  prediction_horizon_input: !input prediction_horizon_input
+
+  load_cost_forecast: >
+    {{ ((state_attr(nordpool_sensor, "raw_today") | map(attribute="value") | list +
+         state_attr(nordpool_sensor, "raw_tomorrow") | map(attribute="value") | list) | default([]))[now().hour:][:prediction_horizon_input | int] | tojson }}
+
+  prediction_horizon: >
+    {{ min(24, (state_attr(nordpool_sensor, "raw_today") | map(attribute="value") | list +
+                 state_attr(nordpool_sensor, "raw_tomorrow") | map(attribute="value") | list | default([]))[now().hour:][:24] | length) }}
+
+  request_payload: >
+    {{ {
+      "load_cost_forecast": load_cost_forecast,
+      "prediction_horizon": prediction_horizon
+    } | tojson }}
+
+action:
+  - service: rest_command.post_naive_mpc_automation
+    data:
+      payload: "{{ request_payload }}"
+  - delay:
+      seconds: 5
+  - service: rest_command.publish_data
