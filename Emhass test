@@ -1,0 +1,21 @@
+blueprint:
+  name: Post Naive MPC Automation (Endast Nordpool)
+  description: Skickar prognosdata till MPC via REST-kommandon var 5:e minut eller vid omstart av Home Assistant.
+  domain: automation
+  input:
+    nordpool_sensor:
+      name: Nordpool sensor
+      description: Sensor som innehåller Nordpool-data
+      selector:
+        entity:
+          domain: sensor
+    prediction_horizon_input:
+      name: Prognoshorisont
+      description: Antal timmar att inkludera i prognosen (24 eller 48)
+      default: 24
+      selector:
+        number:
+          min: 24
+          max: 48
+          step: 24
+          mode: box
